@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"io"
 	"log/slog"
 	"net"
@@ -54,10 +53,10 @@ func (s *Server) loop() error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	reader := bufio.NewReader(conn)
+	resp := NewResp(conn)
 	slog.Info("Connection from", "remoteAddr", conn.RemoteAddr().String())
 	for {
-		message, err := reader.ReadString('\n')
+		message, err := resp.Read()
 		if err != nil {
 			if err != io.EOF {
 				slog.Error("Error while reading from connection", "error", err)

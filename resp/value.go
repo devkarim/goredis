@@ -6,8 +6,9 @@ type RespDataType byte
 
 const (
 	RespString RespDataType = '+'
-	RespArray RespDataType = '*'
-	RespBulk  RespDataType = '$'
+	RespArray  RespDataType = '*'
+	RespBulk   RespDataType = '$'
+	RespError  RespDataType = '-'
 )
 
 type Value struct {
@@ -24,6 +25,8 @@ func (v *Value) Marshal() []byte {
 		return v.marshalArray()
 	case RespBulk:
 		return v.marshalBulk()
+	case RespError:
+		return v.marshalError()
 	default:
 		return []byte{}
 	}
@@ -69,3 +72,13 @@ func (v *Value) marshalBulk() []byte {
 	return bytes
 }
 
+// -Error message\r\n
+func (v *Value) marshalError() []byte {
+	var bytes []byte
+
+	bytes = append(bytes, byte(RespError))
+	bytes = append(bytes, v.Str...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}

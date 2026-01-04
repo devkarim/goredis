@@ -67,7 +67,16 @@ func (s *Server) handleConnection(conn net.Conn) {
 			break
 		}
 		slog.Info("Received", "message", message)
-		writer.Write(resp.Value{Type: resp.RespString, Str: "OK"})
+		if len(message.Array) < 1 {
+			writer.Write(resp.Value{Type: resp.RespError, Str: "Command not found"})
+			continue
+		}
+		handler, ok := Handlers[message.Array[0].Str]
+		if !ok {
+			writer.Write(resp.Value{Type: resp.RespError, Str: "Command not found"})
+			continue
+		}
+		writer.Write(handler(message.Array))
 	}
 	slog.Info("Disconnected", "remoteAddr", conn.RemoteAddr().String())
 }

@@ -1,3 +1,3 @@
-module github.com/devkarim/redis-from-scratch
+module github.com/devkarim/goredis
 
 go 1.24.4

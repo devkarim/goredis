@@ -1,4 +1,4 @@
-package main
+package resp
 
 import (
 	"bufio"
@@ -8,50 +8,37 @@ import (
 	"strconv"
 )
 
-type RespDataType byte
-
-const (
-	Array RespDataType = '*'
-	Bulk  RespDataType = '$'
-)
-
-type Resp struct {
+type Reader struct {
 	conn   net.Conn
 	reader *bufio.Reader
 }
 
-type RespValue struct {
-	Type  RespDataType
-	Str   string
-	Array []RespValue
-}
-
-func NewResp(conn net.Conn) *Resp {
-	return &Resp{
+func NewReader(conn net.Conn) *Reader {
+	return &Reader{
 		conn:   conn,
 		reader: bufio.NewReader(conn),
 	}
 }
 
-func (r *Resp) Read() (RespValue, error) {
+func (r *Reader) Read() (Value, error) {
 	_type, err := r.reader.ReadByte()
 
 	if err != nil {
-		return RespValue{}, err
+		return Value{}, err
 	}
 
 	switch _type {
-	case byte(Array):
+	case byte(RespArray):
 		return r.readArray()
-	case byte(Bulk):
+	case byte(RespBulk):
 		return r.readBulk()
 	default:
 		slog.Error("Invalid type", "type", string(_type))
-		return RespValue{}, nil
+		return Value{}, nil
 	}
 }
 
-func (r *Resp) readLine() (line []byte, n int, err error) {
+func (r *Reader) readLine() (line []byte, n int, err error) {
 	line, err = r.reader.ReadBytes('\n')
 	if err != nil {
 		return nil, 0, err
@@ -63,7 +50,7 @@ func (r *Resp) readLine() (line []byte, n int, err error) {
 	return line[:n-2], n, nil
 }
 
-func (r *Resp) readInt() (x int, err error) {
+func (r *Reader) readInt() (x int, err error) {
 	line, _, err := r.readLine()
 	if err != nil {
 		return 0, err
@@ -76,9 +63,9 @@ func (r *Resp) readInt() (x int, err error) {
 }
 
 // *<number-of-elements>\r\n<element-1>...<element-n>
-func (r *Resp) readArray() (RespValue, error) {
-	v := RespValue{
-		Type: Array,
+func (r *Reader) readArray() (Value, error) {
+	v := Value{
+		Type: RespArray,
 	}
 
 	n, err := r.readInt()
@@ -86,7 +73,7 @@ func (r *Resp) readArray() (RespValue, error) {
 		return v, err
 	}
 
-	v.Array = make([]RespValue, 0)
+	v.Array = make([]Value, 0)
 	for range n {
 		val, err := r.Read()
 		if err != nil {
@@ -100,9 +87,9 @@ func (r *Resp) readArray() (RespValue, error) {
 }
 
 // $<length>\r\n<data>\r\n
-func (r *Resp) readBulk() (RespValue, error) {
-	v := RespValue{
-		Type: Bulk,
+func (r *Reader) readBulk() (Value, error) {
+	v := Value{
+		Type: RespBulk,
 	}
 
 	n, err := r.readInt()
@@ -119,3 +106,4 @@ func (r *Resp) readBulk() (RespValue, error) {
 
 	return v, nil
 }
+

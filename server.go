@@ -4,6 +4,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+
+	"github.com/devkarim/goredis/resp"
 )
 
 const DEFAULT_LISTEN_ADDR = ":6379"
@@ -53,10 +55,11 @@ func (s *Server) loop() error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	resp := NewResp(conn)
+	reader := resp.NewReader(conn)
+	writer := resp.NewWriter(conn)
 	slog.Info("Connection from", "remoteAddr", conn.RemoteAddr().String())
 	for {
-		message, err := resp.Read()
+		message, err := reader.Read()
 		if err != nil {
 			if err != io.EOF {
 				slog.Error("Error while reading from connection", "error", err)
@@ -64,7 +67,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			break
 		}
 		slog.Info("Received", "message", message)
-		conn.Write([]byte("+OK\r\n"))
+		writer.Write(resp.Value{Type: resp.RespString, Str: "OK"})
 	}
 	slog.Info("Disconnected", "remoteAddr", conn.RemoteAddr().String())
 }

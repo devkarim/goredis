@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/devkarim/goredis/resp"
+	"hash/fnv"
 	"sync"
+
+	"github.com/devkarim/goredis/resp"
 )
 
 type RedisObjectType string
@@ -18,8 +20,28 @@ type RedisObject struct {
 	Hash map[string]string
 }
 
-var store = map[string]*RedisObject{}
-var storeMutex = sync.RWMutex{}
+type Shard struct {
+	mu sync.RWMutex
+	store map[string]*RedisObject
+}
+
+var shards []*Shard
+
+func init() {
+	shards = make([]*Shard, 256)
+
+	for i := 0; i < len(shards); i++ {
+		shards[i] = &Shard{}
+		shards[i].mu = sync.RWMutex{}
+		shards[i].store = map[string]*RedisObject{}
+	}
+}
+
+func getShard(key string) *Shard {
+	h := fnv.New32a()
+	h.Write([]byte(key))
+	return shards[h.Sum32() % uint32(len(shards))]
+}
 
 var Handlers = map[string]func([]resp.Value) resp.Value{
 	"PING":    ping,
@@ -46,9 +68,11 @@ func set(args []resp.Value) resp.Value {
 	key := args[0].Str
 	val := args[1].Str
 
-	storeMutex.Lock()
-	store[key] = &RedisObject{Type: RedisObjectString, Str: val}
-	defer storeMutex.Unlock()
+	shard := getShard(key)
+
+	shard.mu.Lock()
+	shard.store[key] = &RedisObject{Type: RedisObjectString, Str: val}
+	shard.mu.Unlock()
 
 	return resp.Value{Type: resp.RespString, Str: "OK"}
 }
@@ -60,9 +84,11 @@ func get(args []resp.Value) resp.Value {
 
 	key := args[0].Str
 
-	storeMutex.RLock()
-	obj, ok := store[key]
-	defer storeMutex.RUnlock()
+	shard := getShard(key)
+
+	shard.mu.RLock()
+	obj, ok := shard.store[key]
+	shard.mu.RUnlock()
 
 	if !ok {
 		return resp.Value{Type: resp.RespNil}
@@ -84,13 +110,15 @@ func hset(args []resp.Value) resp.Value {
 	key := args[1].Str
 	val := args[2].Str
 
-	storeMutex.Lock()
-	if _, ok := store[hash]; !ok {
-		store[hash] = &RedisObject{Type: RedisObjectHash}
-		store[hash].Hash = map[string]string{}
+	shard := getShard(hash)
+
+	shard.mu.Lock()
+	if _, ok := shard.store[hash]; !ok {
+		shard.store[hash] = &RedisObject{Type: RedisObjectHash}
+		shard.store[hash].Hash = map[string]string{}
 	}
-	store[hash].Hash[key] = val
-	defer storeMutex.Unlock()
+	shard.store[hash].Hash[key] = val
+	shard.mu.Unlock()
 
 	return resp.Value{Type: resp.RespString, Str: "OK"}
 }
@@ -103,9 +131,11 @@ func hget(args []resp.Value) resp.Value {
 	hash := args[0].Str
 	key := args[1].Str
 
-	storeMutex.RLock()
-	obj, ok := store[hash]
-	defer storeMutex.RUnlock()
+	shard := getShard(hash)
+
+	shard.mu.RLock()
+	obj, ok := shard.store[hash]
+	shard.mu.RUnlock()
 
 	if !ok {
 		return resp.Value{Type: resp.RespNil}
@@ -115,7 +145,7 @@ func hget(args []resp.Value) resp.Value {
 		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
 	}
 
-	return resp.Value{Type: resp.RespBulk, Str: store[hash].Hash[key]}
+	return resp.Value{Type: resp.RespBulk, Str: shard.store[hash].Hash[key]}
 }
 
 func hgetall(args []resp.Value) resp.Value {
@@ -125,9 +155,11 @@ func hgetall(args []resp.Value) resp.Value {
 
 	hash := args[0].Str
 
-	storeMutex.RLock()
-	obj, ok := store[hash]
-	defer storeMutex.RUnlock()
+	shard := getShard(hash)
+
+	shard.mu.RLock()
+	obj, ok := shard.store[hash]
+	shard.mu.RUnlock()
 
 	if !ok {
 		return resp.Value{Type: resp.RespNil}

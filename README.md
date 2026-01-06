@@ -2,6 +2,7 @@
 
 ## Overview
 ![Redis system](https://i.ibb.co/LDmpYLyK/image.png)
+
 Goredis is a clone of [Redis](https://redis.io) - an In-Memory database.
 
 This project is made for educational purposes only, to grasp how low-level projects work behind the scenes.

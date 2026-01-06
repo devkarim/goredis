@@ -30,7 +30,7 @@ Inspired by:
 - Go v1.24.4
 
 ## How to Run
-Simply type the below command in the project directory:
+Simply type the command below inside the project directory:
 ```
 make
 ```

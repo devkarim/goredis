@@ -29,12 +29,18 @@ Inspired by:
 - [ ] Transactions (Optional)
 
 ## Prerequisites
-- Go v1.24.4
+- go v1.24.4
+- redis-cli
 
 ## How to Run
-Simply type the command below inside the project directory:
+Simply type the command below inside the project directory to run the server (make sure port 6379 is available):
 ```
 make
+```
+
+Then you can directly communicate with the server by using [redis-cli](https://redis.io/docs/latest/develop/tools/cli/) by using the command below:
+```
+redis-cli -p 6379
 ```
 
 ## References

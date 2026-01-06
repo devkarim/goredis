@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/devkarim/goredis/resp"
+	"github.com/devkarim/goredis/command"
 )
 
 const DEFAULT_LISTEN_ADDR = ":6379"
@@ -81,7 +82,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		cmdUpper := strings.ToUpper(cmd)
 		args := message.Array[1:]
 
-		handler, ok := Handlers[cmdUpper]
+		handler, ok := command.Handlers[cmdUpper]
 		if !ok {
 			writer.Write(resp.Value{Type: resp.RespError, Str: "ERR unknown command '" + cmd + "'"})
 			continue

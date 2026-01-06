@@ -37,5 +37,9 @@ Simply type the command below inside the project directory:
 make
 ```
 
+## References
+- [Redis serialization protocol specification](https://redis.io/docs/latest/develop/reference/protocol-spec/#nulls)
+- [Concurrency Control in Go: Mastering Mutex and RWMutex for Critical Sections](https://leapcell.io/blog/concurrency-control-in-go-mastering-mutex-and-rwmutex-for-critical-sections)
+
 ## License
 This project is licensed under MIT license.

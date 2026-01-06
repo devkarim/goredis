@@ -77,12 +77,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		command := strings.ToUpper(message.Array[0].Str)
+		cmd := message.Array[0].Str
+		cmdUpper := strings.ToUpper(cmd)
 		args := message.Array[1:]
 
-		handler, ok := Handlers[command]
+		handler, ok := Handlers[cmdUpper]
 		if !ok {
-			writer.Write(resp.Value{Type: resp.RespError, Str: "Command not found"})
+			writer.Write(resp.Value{Type: resp.RespError, Str: "ERR unknown command '" + cmd + "'"})
 			continue
 		}
 		writer.Write(handler(args))

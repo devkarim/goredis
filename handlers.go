@@ -75,12 +75,16 @@ func hset(args []resp.Value) resp.Value {
 	shard := storage.GetShard(hash)
 
 	shard.Mu.Lock()
+	defer shard.Mu.Unlock()
+
 	if _, ok := shard.Store[hash]; !ok {
 		shard.Store[hash] = &storage.RedisObject{Type: storage.RedisObjectHash}
 		shard.Store[hash].Hash = map[string]string{}
 	}
+	if shard.Store[hash].Type != storage.RedisObjectHash {
+		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
+	}
 	shard.Store[hash].Hash[key] = val
-	shard.Mu.Unlock()
 
 	return resp.Value{Type: resp.RespString, Str: "OK"}
 }
@@ -96,8 +100,9 @@ func hget(args []resp.Value) resp.Value {
 	shard := storage.GetShard(hash)
 
 	shard.Mu.RLock()
+	defer shard.Mu.RUnlock()
+
 	obj, ok := shard.Store[hash]
-	shard.Mu.RUnlock()
 
 	if !ok {
 		return resp.Value{Type: resp.RespNil}
@@ -120,8 +125,9 @@ func hgetall(args []resp.Value) resp.Value {
 	shard := storage.GetShard(hash)
 
 	shard.Mu.RLock()
+	defer shard.Mu.RUnlock()
+
 	obj, ok := shard.Store[hash]
-	shard.Mu.RUnlock()
 
 	if !ok {
 		return resp.Value{Type: resp.RespNil}

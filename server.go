@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 
 	"github.com/devkarim/goredis/resp"
 )
@@ -67,16 +68,24 @@ func (s *Server) handleConnection(conn net.Conn) {
 			break
 		}
 		slog.Info("Received", "message", message)
-		if len(message.Array) < 1 {
-			writer.Write(resp.Value{Type: resp.RespError, Str: "Command not found"})
+		if message.Type != resp.RespArray {
+			writer.Write(resp.Value{Type: resp.RespError, Str: "Invalid request, expected array"})
 			continue
 		}
-		handler, ok := Handlers[message.Array[0].Str]
+		if len(message.Array) <= 0 {
+			writer.Write(resp.Value{Type: resp.RespError, Str: "Invalid request, expected array length > 0"})
+			continue
+		}
+
+		command := strings.ToUpper(message.Array[0].Str)
+		args := message.Array[1:]
+
+		handler, ok := Handlers[command]
 		if !ok {
 			writer.Write(resp.Value{Type: resp.RespError, Str: "Command not found"})
 			continue
 		}
-		writer.Write(handler(message.Array))
+		writer.Write(handler(args))
 	}
 	slog.Info("Disconnected", "remoteAddr", conn.RemoteAddr().String())
 }

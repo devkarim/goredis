@@ -6,6 +6,10 @@ type Writer struct {
 	writer io.Writer
 }
 
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{writer: w}
+}
+
 func (w *Writer) Write(v Value) error {
 	bytes := v.Marshal()
 
@@ -15,9 +19,5 @@ func (w *Writer) Write(v Value) error {
 	}
 
 	return nil
-}
-
-func NewWriter(w io.Writer) *Writer {
-	return &Writer{writer: w}
 }
 

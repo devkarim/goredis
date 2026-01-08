@@ -5,12 +5,16 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"time"
 
-	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/command"
+	"github.com/devkarim/goredis/resp"
+	"github.com/devkarim/goredis/storage"
 )
 
 const DEFAULT_LISTEN_ADDR = ":6379"
+const AOF_FILE_PATH = "database.aof"
+const SYNC_TIME = time.Second * 1
 
 type Config struct {
 	ListenAddr string
@@ -18,7 +22,8 @@ type Config struct {
 
 type Server struct {
 	Config
-	ln net.Listener
+	ln  net.Listener
+	aof *storage.Aof
 }
 
 func NewServer(cfg Config) *Server {
@@ -31,14 +36,41 @@ func NewServer(cfg Config) *Server {
 }
 
 func (s *Server) Start() error {
+	aof, err := storage.NewAof(AOF_FILE_PATH)
+	if err != nil {
+		slog.Error("Couldn't read aof", "error", err)
+		return err
+	}
+	defer aof.Close()
+
+	aof.Read(func(val resp.Value) {
+		cmd := strings.ToUpper(val.Array[0].Str)
+		handler, ok := command.Handlers[cmd]
+		if ok {
+			slog.Info("Executing from AOF", "command", val)
+			args := val.Array[1:]
+			handler(args)
+		}
+	})
+
+	// Sync AOF every some specific duration to prevent OS deciding when to flush the file to disk
+	go func() {
+		for {
+			aof.Sync()
+			time.Sleep(SYNC_TIME)
+		}
+	}()
+
 	ln, err := net.Listen("tcp", s.ListenAddr)
 	if err != nil {
 		return err
 	}
 	defer ln.Close()
 
+
 	slog.Info("Server running at localhost:6379")
 	s.ln = ln
+	s.aof = aof
 
 	return s.loop()
 }
@@ -59,6 +91,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	reader := resp.NewReader(conn)
 	writer := resp.NewWriter(conn)
+
 	slog.Info("Connection from", "remoteAddr", conn.RemoteAddr().String())
 	for {
 		message, err := reader.Read()
@@ -87,7 +120,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			writer.Write(resp.Value{Type: resp.RespError, Str: "ERR unknown command '" + cmd + "'"})
 			continue
 		}
-		writer.Write(handler(args))
+		if cmdUpper == "SET" || cmdUpper == "HSET" {
+			slog.Info("Saving into AOF", "message", message)
+			s.aof.Write(message)
+		}
+		response := handler(args)
+		writer.Write(response)
 	}
 	slog.Info("Disconnected", "remoteAddr", conn.RemoteAddr().String())
 }

@@ -3,20 +3,18 @@ package resp
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
-	"net"
 	"strconv"
 )
 
 type Reader struct {
-	conn   net.Conn
 	reader *bufio.Reader
 }
 
-func NewReader(conn net.Conn) *Reader {
+func NewReader(rd io.Reader) *Reader {
 	return &Reader{
-		conn:   conn,
-		reader: bufio.NewReader(conn),
+		reader: bufio.NewReader(rd),
 	}
 }
 

@@ -17,7 +17,7 @@ Inspired by:
 - [x] Command handlers
 - [x] Caching layer
 - [x] Sharding
-- [ ] Data persistence layer
+- [x] Data persistence layer
 - [ ] Set key expiration
 - [ ] Pub/Sub
 - [ ] Eviction policy such as LRU

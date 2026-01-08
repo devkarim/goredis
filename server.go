@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/devkarim/goredis/command"
+	"github.com/devkarim/goredis/commands"
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
 )
@@ -45,11 +45,11 @@ func (s *Server) Start() error {
 
 	aof.Read(func(val resp.Value) {
 		cmd := strings.ToUpper(val.Array[0].Str)
-		handler, ok := command.Handlers[cmd]
+		command, ok := commands.Registry[cmd]
 		if ok {
 			slog.Info("Executing from AOF", "command", val)
 			args := val.Array[1:]
-			handler(args)
+			command.Handler(args)
 		}
 	})
 
@@ -115,16 +115,16 @@ func (s *Server) handleConnection(conn net.Conn) {
 		cmdUpper := strings.ToUpper(cmd)
 		args := message.Array[1:]
 
-		handler, ok := command.Handlers[cmdUpper]
+		command, ok := commands.Registry[cmdUpper]
 		if !ok {
 			writer.Write(resp.Value{Type: resp.RespError, Str: "ERR unknown command '" + cmd + "'"})
 			continue
 		}
-		if cmdUpper == "SET" || cmdUpper == "HSET" {
+		response := command.Handler(args)
+		if command.IsWrite && response.Type != resp.RespError {
 			slog.Info("Saving into AOF", "message", message)
 			s.aof.Write(message)
 		}
-		response := handler(args)
 		writer.Write(response)
 	}
 	slog.Info("Disconnected", "remoteAddr", conn.RemoteAddr().String())

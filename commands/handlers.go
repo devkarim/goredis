@@ -1,17 +1,22 @@
-package command
+package commands
 
 import (
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
 )
 
-var Handlers = map[string]func([]resp.Value) resp.Value{
-	"PING":    ping,
-	"SET":     set,
-	"GET":     get,
-	"HSET":    hset,
-	"HGET":    hget,
-	"HGETALL": hgetall,
+type Command struct {
+	Handler func([]resp.Value) resp.Value
+	IsWrite bool
+}
+
+var Registry = map[string]Command{
+	"PING":    {Handler: ping, IsWrite: false},
+	"SET":     {Handler: set, IsWrite: true},
+	"GET":     {Handler: get, IsWrite: false},
+	"HSET":    {Handler: hset, IsWrite: true},
+	"HGET":    {Handler: hget, IsWrite: false},
+	"HGETALL": {Handler: hgetall, IsWrite: false},
 }
 
 func ping(args []resp.Value) resp.Value {

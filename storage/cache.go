@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"hash/fnv"
+	"log/slog"
 	"sync"
 
 	"github.com/devkarim/goredis/eviction"
@@ -36,6 +37,7 @@ func (r *RedisObject) Size() int {
 }
 
 type Shard struct {
+	Id            int
 	Mu            sync.RWMutex
 	Store         map[string]*RedisObject
 	Policy        eviction.Policy
@@ -46,14 +48,10 @@ type Shard struct {
 var shards []*Shard
 
 func Setup(policy eviction.Policy, maxMemory int) {
-	shards = make([]*Shard, 256)
+	shards = make([]*Shard, 8)
 
 	for i := 0; i < len(shards); i++ {
-		shards[i] = &Shard{}
-		shards[i].Mu = sync.RWMutex{}
-		shards[i].Store = map[string]*RedisObject{}
-		shards[i].Policy = policy
-		shards[i].MaxMemory = maxMemory
+		shards[i] = &Shard{Id: i, MaxMemory: maxMemory, Policy: policy, Mu: sync.RWMutex{}, Store: map[string]*RedisObject{}}
 	}
 }
 
@@ -64,6 +62,7 @@ func GetShard(key string) *Shard {
 }
 
 func (s *Shard) evict(neededSize int) {
+	slog.Info("Evicting policy", "shard", s.Id, "currentMemory", s.CurrentMemory, "neededSize", neededSize, "maxMemory", s.MaxMemory)
 	for s.CurrentMemory+neededSize > s.MaxMemory {
 		victim, ok := s.Policy.SelectVictim()
 		if ok {

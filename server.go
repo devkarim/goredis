@@ -37,6 +37,9 @@ func NewServer(cfg Config) *Server {
 }
 
 func (s *Server) Start() error {
+	// TODO: allow to configure eviction policy and maxmemory
+	storage.Setup(eviction.NewFIFO(), 1e+8)
+
 	aof, err := storage.NewAof(AOF_FILE_PATH)
 	if err != nil {
 		slog.Error("Couldn't read aof", "error", err)
@@ -61,9 +64,6 @@ func (s *Server) Start() error {
 			time.Sleep(SYNC_TIME)
 		}
 	}()
-
-	// TODO: allow to configure eviction policy and maxmemory
-	storage.Setup(eviction.NewFIFO(), 1e+8)
 
 	ln, err := net.Listen("tcp", s.ListenAddr)
 	if err != nil {

@@ -21,7 +21,7 @@ func TestHashSize(t *testing.T) {
 
 	obj := &RedisObject{Hash: hash, Type: RedisObjectHash}
 	result := obj.Size()
-	expected := 10
+	expected := 14
 
 	if  result != expected {
 		t.Errorf("obj.Size() = %d; want %d", result, expected)

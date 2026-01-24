@@ -36,10 +36,11 @@ func set(args []resp.Value) resp.Value {
 	val := args[1].Str
 
 	shard := storage.GetShard(key)
+	err := shard.SetString(key, val)
 
-	shard.Mu.Lock()
-	shard.Store[key] = &storage.RedisObject{Type: storage.RedisObjectString, Str: val}
-	shard.Mu.Unlock()
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: err.Error()}
+	}
 
 	return resp.Value{Type: resp.RespString, Str: "OK"}
 }
@@ -52,20 +53,17 @@ func get(args []resp.Value) resp.Value {
 	key := args[0].Str
 
 	shard := storage.GetShard(key)
+	val, found, err := shard.GetString(key)
 
-	shard.Mu.RLock()
-	obj, ok := shard.Store[key]
-	shard.Mu.RUnlock()
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: err.Error()}
+	}
 
-	if !ok {
+	if !found {
 		return resp.Value{Type: resp.RespNil}
 	}
 
-	if obj.Type != storage.RedisObjectString {
-		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
-	}
-
-	return resp.Value{Type: resp.RespBulk, Str: obj.Str}
+	return resp.Value{Type: resp.RespBulk, Str: val}
 }
 
 func hset(args []resp.Value) resp.Value {
@@ -78,18 +76,11 @@ func hset(args []resp.Value) resp.Value {
 	val := args[2].Str
 
 	shard := storage.GetShard(hash)
+	err := shard.HSet(hash, key, val)
 
-	shard.Mu.Lock()
-	defer shard.Mu.Unlock()
-
-	if _, ok := shard.Store[hash]; !ok {
-		shard.Store[hash] = &storage.RedisObject{Type: storage.RedisObjectHash}
-		shard.Store[hash].Hash = map[string]string{}
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: err.Error()}
 	}
-	if shard.Store[hash].Type != storage.RedisObjectHash {
-		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
-	}
-	shard.Store[hash].Hash[key] = val
 
 	return resp.Value{Type: resp.RespString, Str: "OK"}
 }
@@ -103,21 +94,17 @@ func hget(args []resp.Value) resp.Value {
 	key := args[1].Str
 
 	shard := storage.GetShard(hash)
+	val, found, err := shard.HGet(hash, key)
 
-	shard.Mu.RLock()
-	defer shard.Mu.RUnlock()
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: err.Error()}
+	}
 
-	obj, ok := shard.Store[hash]
-
-	if !ok {
+	if !found {
 		return resp.Value{Type: resp.RespNil}
 	}
 
-	if obj.Type != storage.RedisObjectHash {
-		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
-	}
-
-	return resp.Value{Type: resp.RespBulk, Str: shard.Store[hash].Hash[key]}
+	return resp.Value{Type: resp.RespBulk, Str: val}
 }
 
 func hgetall(args []resp.Value) resp.Value {
@@ -128,28 +115,21 @@ func hgetall(args []resp.Value) resp.Value {
 	hash := args[0].Str
 
 	shard := storage.GetShard(hash)
+	arr, found, err := shard.HGetAll(hash)
 
-	shard.Mu.RLock()
-	defer shard.Mu.RUnlock()
-
-	obj, ok := shard.Store[hash]
-
-	if !ok {
-		return resp.Value{Type: resp.RespNil}
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: err.Error()}
 	}
 
-	if obj.Type != storage.RedisObjectHash {
-		return resp.Value{Type: resp.RespError, Str: "WRONGTYPE Operation against a key holding the wrong kind of value"}
+	if !found {
+		return resp.Value{Type: resp.RespArray, Array: make([]resp.Value, 0)}
 	}
 
-	idx := 0
-	arr := make([]resp.Value, len(obj.Hash)*2)
+	respArray := make([]resp.Value, len(arr))
 
-	for key, value := range obj.Hash {
-		arr[idx] = resp.Value{Type: resp.RespBulk, Str: key}
-		arr[idx+1] = resp.Value{Type: resp.RespBulk, Str: value}
-		idx += 2
+	for idx, value := range arr {
+		respArray[idx] = resp.Value{Type: resp.RespBulk, Str: value}
 	}
 
-	return resp.Value{Type: resp.RespArray, Array: arr}
+	return resp.Value{Type: resp.RespArray, Array: respArray}
 }

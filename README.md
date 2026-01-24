@@ -20,7 +20,9 @@ Inspired by:
 - [x] Data persistence layer
 - [ ] Set key expiration
 - [ ] Pub/Sub
-- [ ] Eviction policy such as LRU
+- [ ] Eviction policies
+    - [x] FIFO
+    - [ ] LRU
 - [ ] Configuration file
     - [ ] Port
     - [ ] Memory limit

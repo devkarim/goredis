@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/devkarim/goredis/commands"
+	"github.com/devkarim/goredis/eviction"
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
 )
@@ -61,12 +62,14 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	// TODO: allow to configure eviction policy and maxmemory
+	storage.Setup(eviction.NewFIFO(), 1e+8)
+
 	ln, err := net.Listen("tcp", s.ListenAddr)
 	if err != nil {
 		return err
 	}
 	defer ln.Close()
-
 
 	slog.Info("Server running at localhost:6379")
 	s.ln = ln

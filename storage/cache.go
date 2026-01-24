@@ -45,7 +45,7 @@ type Shard struct {
 
 var shards []*Shard
 
-func setup(policy eviction.Policy, maxMemory int) {
+func Setup(policy eviction.Policy, maxMemory int) {
 	shards = make([]*Shard, 256)
 
 	for i := 0; i < len(shards); i++ {

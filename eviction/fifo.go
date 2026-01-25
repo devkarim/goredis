@@ -2,9 +2,11 @@ package eviction
 
 import (
 	"container/list"
+	"sync"
 )
 
 type FIFO struct {
+	mu sync.Mutex
 	list *list.List
 	dict map[string]*list.Element
 }
@@ -14,6 +16,9 @@ func NewFIFO() *FIFO {
 }
 
 func (f *FIFO) Access(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	_, ok := f.dict[key]
 	if ok {
 		return
@@ -22,6 +27,9 @@ func (f *FIFO) Access(key string) {
 }
 
 func (f *FIFO) Remove(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	el, ok := f.dict[key]
 	if !ok {
 		return
@@ -31,6 +39,9 @@ func (f *FIFO) Remove(key string) {
 }
 
 func (f *FIFO) SelectVictim() (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.list.Len() == 0 {
 		return "", false
 	}

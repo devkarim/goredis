@@ -38,7 +38,7 @@ func NewServer(cfg Config) *Server {
 
 func (s *Server) Start() error {
 	// TODO: allow to configure eviction policy and maxmemory
-	storage.Setup(eviction.NewFIFO(), 1e+8)
+	storage.Setup(eviction.NewLRU(), 1e+8)
 
 	aof, err := storage.NewAof(AOF_FILE_PATH)
 	if err != nil {

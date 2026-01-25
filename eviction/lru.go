@@ -1,4 +1,42 @@
 package eviction
 
+import (
+	"container/list"
+)
+
 type LRU struct {
+	list *list.List
+	dict map[string]*list.Element
 }
+
+func NewLRU() *LRU {
+	return &LRU{list: list.New(), dict: make(map[string]*list.Element)}
+}
+
+func (lru *LRU) Access(key string) {
+	el, ok := lru.dict[key]
+	if ok {
+		lru.list.Remove(el)
+	}
+	lru.dict[key] = lru.list.PushFront(key)
+}
+
+func (lru *LRU) Remove(key string) {
+	el, ok := lru.dict[key]
+	if ok {
+		lru.list.Remove(el)
+		delete(lru.dict, key)
+	}
+}
+
+func (lru *LRU) SelectVictim() (string, bool) {
+	if lru.list.Len() == 0 {
+		return "", false
+	}
+	victim := lru.list.Back()
+	key := victim.Value.(string)
+	lru.list.Remove(victim)
+	delete(lru.dict, key)
+	return key, true
+}
+

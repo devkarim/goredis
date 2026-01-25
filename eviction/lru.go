@@ -21,8 +21,10 @@ func (lru *LRU) Access(key string) {
 
 	el, ok := lru.dict[key]
 	if ok {
-		lru.list.Remove(el)
+		lru.list.MoveToFront(el)
+		return
 	}
+
 	lru.dict[key] = lru.list.PushFront(key)
 }
 

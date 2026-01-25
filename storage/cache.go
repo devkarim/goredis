@@ -88,7 +88,6 @@ func (s *Shard) SetString(key string, val string) error {
 	if ok && s.Store[key].Type != RedisObjectString {
 		return ErrWrongType
 	}
-
 	if ok {
 		s.CurrentMemory -= oldVal.Size()
 	}
@@ -112,7 +111,6 @@ func (s *Shard) GetString(key string) (string, bool, error) {
 	if !ok {
 		return "", false, nil
 	}
-
 	if obj.Type != RedisObjectString {
 		return "", false, ErrWrongType
 	}
@@ -131,7 +129,6 @@ func (s *Shard) HSet(hash, key, val string) error {
 	if ok && s.Store[hash].Type != RedisObjectHash {
 		return ErrWrongType
 	}
-
 	if ok {
 		s.CurrentMemory -= obj.Size()
 	}
@@ -163,7 +160,6 @@ func (s *Shard) HGet(hash, key string) (string, bool, error) {
 	if !ok {
 		return "", false, nil
 	}
-
 	if obj.Type != RedisObjectHash {
 		return "", false, ErrWrongType
 	}
@@ -183,21 +179,17 @@ func (s *Shard) HGetAll(hash string) ([]string, bool, error) {
 	defer s.Mu.RUnlock()
 
 	obj, ok := s.Store[hash]
-
 	if !ok {
 		return []string{}, false, nil
 	}
-
 	if obj.Type != RedisObjectHash {
 		return []string{}, false, ErrWrongType
 	}
 
-	arr := make([]string, len(obj.Hash)*2)
-
 	s.Policy.Access(hash)
 
+	arr := make([]string, len(obj.Hash)*2)
 	idx := 0
-
 	for key, value := range obj.Hash {
 		arr[idx] = key
 		arr[idx+1] = value

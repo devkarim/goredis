@@ -49,3 +49,4 @@ func TestLRU_Remove(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, victim)
 	}
 }
+

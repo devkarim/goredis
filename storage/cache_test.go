@@ -36,10 +36,29 @@ func TestEviction_FIFO(t *testing.T) {
 
 	shard.SetString("a", "12345")
 	shard.SetString("b", "12345")
+	shard.SetString("a", "12345")
 	shard.SetString("c", "12345")
 
 	if _, ok := shard.Store["a"]; ok {
 		t.Errorf("'a' should have been evicted")
+	}
+
+	if _, ok := shard.Store["c"]; !ok {
+		t.Errorf("'c' should exist")
+	}
+}
+
+func TestEviction_LRU(t *testing.T) {
+	policy := eviction.NewLRU()
+	shard := &Shard{Store: make(map[string]*RedisObject), Policy: policy, MaxMemory: 10}
+
+	shard.SetString("a", "12345")
+	shard.SetString("b", "12345")
+	shard.SetString("a", "56789")
+	shard.SetString("c", "12345")
+
+	if _, ok := shard.Store["b"]; ok {
+		t.Errorf("'b' should have been evicted")
 	}
 
 	if _, ok := shard.Store["c"]; !ok {

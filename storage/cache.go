@@ -90,6 +90,7 @@ func (s *Shard) SetString(key string, val string) error {
 	}
 	if ok {
 		s.CurrentMemory -= oldVal.Size()
+		s.Policy.Remove(key)
 	}
 
 	newObj := &RedisObject{Type: RedisObjectString, Str: val}
@@ -138,8 +139,8 @@ func (s *Shard) HSet(hash, key, val string) error {
 		neededMemory += obj.Size()
 	}
 
-	s.evict(neededMemory)
 	s.Policy.Access(hash)
+	s.evict(neededMemory)
 
 	if !ok {
 		obj = &RedisObject{Type: RedisObjectHash, Hash: map[string]string{}}

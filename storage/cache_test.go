@@ -36,7 +36,7 @@ func TestEviction_FIFO(t *testing.T) {
 
 	shard.SetString("a", "12345")
 	shard.SetString("b", "12345")
-	shard.SetString("a", "12345")
+	shard.GetString("a")
 	shard.SetString("c", "12345")
 
 	got := shard.CurrentMemory
@@ -77,5 +77,51 @@ func TestEviction_LRU(t *testing.T) {
 
 	if _, ok := shard.Store["c"]; !ok {
 		t.Errorf("'c' should exist")
+	}
+}
+
+func TestEviction_LRU_UpdateTriggersEviction(t *testing.T) {
+	policy := eviction.NewLRU()
+	shard := &Shard{Store: make(map[string]*RedisObject), Policy: policy, MaxMemory: 10}
+
+	shard.SetString("a", "12345")
+	shard.SetString("b", "12345")
+
+	shard.SetString("a", "123456")
+
+	if val, ok := shard.Store["a"]; !ok || val.Str != "123456" {
+		t.Errorf("'a' should exist with value '123456'")
+	}
+
+	if _, ok := shard.Store["b"]; ok {
+		t.Errorf("'b' should have been evicted")
+	}
+
+	expected := 6
+	if shard.CurrentMemory != expected {
+		t.Errorf("CurrentMemory = %d; got %d", expected, shard.CurrentMemory)
+	}
+}
+
+func TestEviction_FIFO_UpdateTriggersEviction(t *testing.T) {
+	policy := eviction.NewFIFO()
+	shard := &Shard{Store: make(map[string]*RedisObject), Policy: policy, MaxMemory: 10}
+
+	shard.SetString("a", "12345")
+	shard.SetString("b", "12345")
+
+	shard.SetString("a", "123456")
+
+	if val, ok := shard.Store["a"]; !ok || val.Str != "123456" {
+		t.Errorf("'a' should exist with value '123456'")
+	}
+
+	if _, ok := shard.Store["b"]; ok {
+		t.Errorf("'b' should have been evicted")
+	}
+
+	expected := 6
+	if shard.CurrentMemory != expected {
+		t.Errorf("CurrentMemory = %d; got %d", expected, shard.CurrentMemory)
 	}
 }

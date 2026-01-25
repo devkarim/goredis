@@ -7,6 +7,7 @@ func TestFIFO_SelectVictim_Order(t *testing.T) {
 	fifo.Access("a")
 	fifo.Access("b")
 	fifo.Access("c")
+	fifo.Access("a")
 
 	result, ok := fifo.SelectVictim()
 	expected := "a"
@@ -34,7 +35,7 @@ func TestFIFO_SelectVictim_Empty(t *testing.T) {
 	}
 }
 
-func TestFIFO_SelectVictim_Remove(t *testing.T) {
+func TestFIFO_Remove(t *testing.T) {
 	fifo := NewFIFO()
 	fifo.Access("a")
 	fifo.Access("b")
@@ -44,7 +45,7 @@ func TestFIFO_SelectVictim_Remove(t *testing.T) {
 	expected := "b"
 
 	if !ok || expected != result {
-		t.Errorf("expected ok to be %s, got %s", expected, result)
+		t.Errorf("expected %s, got %s", expected, result)
 	}
 }
 

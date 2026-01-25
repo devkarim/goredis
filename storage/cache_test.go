@@ -39,6 +39,13 @@ func TestEviction_FIFO(t *testing.T) {
 	shard.SetString("a", "12345")
 	shard.SetString("c", "12345")
 
+	got := shard.CurrentMemory
+	expected := 10
+
+	if got != expected {
+		t.Errorf("expected %d, got %d", expected, got)
+	}
+
 	if _, ok := shard.Store["a"]; ok {
 		t.Errorf("'a' should have been evicted")
 	}
@@ -56,6 +63,13 @@ func TestEviction_LRU(t *testing.T) {
 	shard.SetString("b", "12345")
 	shard.SetString("a", "56789")
 	shard.SetString("c", "12345")
+
+	got := shard.CurrentMemory
+	expected := 10
+
+	if got != expected {
+		t.Errorf("expected %d, got %d", expected, got)
+	}
 
 	if _, ok := shard.Store["b"]; ok {
 		t.Errorf("'b' should have been evicted")

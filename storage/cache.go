@@ -66,6 +66,7 @@ func (s *Shard) evict(neededSize int) {
 	for s.CurrentMemory+neededSize > s.MaxMemory {
 		victim, ok := s.Policy.SelectVictim()
 		if ok {
+			slog.Info("Evicting policy", "evicted", victim)
 			victimVal := s.Store[victim]
 			delete(s.Store, victim)
 			if victimVal != nil {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/devkarim/goredis/commands"
 	"github.com/devkarim/goredis/core"
-	"github.com/devkarim/goredis/eviction"
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
 )
@@ -29,9 +28,9 @@ func NewServer(cfg core.Config) *Server {
 }
 
 func (s *Server) Start() error {
-	storage.Setup(eviction.NewPolicy(s.Policy), s.MaxMemory)
+	storage.Setup(s.Policy.NewPolicy(), *s.MaxMemory)
 
-	aof, err := storage.NewAof(s.AofPath)
+	aof, err := storage.NewAof(*s.AofPath)
 	if err != nil {
 		slog.Error("Couldn't read aof", "error", err)
 		return err
@@ -42,7 +41,7 @@ func (s *Server) Start() error {
 		cmd := strings.ToUpper(val.Array[0].Str)
 		command, ok := commands.Registry[cmd]
 		if ok {
-			slog.Info("Executing from AOF", "command", val)
+			slog.Debug("Executing from AOF", "command", val)
 			args := val.Array[1:]
 			command.Handler(args)
 		}
@@ -56,13 +55,13 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	ln, err := net.Listen("tcp", s.ListenAddr)
+	ln, err := net.Listen("tcp", *s.ListenAddr)
 	if err != nil {
 		return err
 	}
 	defer ln.Close()
 
-	slog.Info("Server running at", "listenAddr", s.ListenAddr)
+	slog.Info("Server running at", "listenAddr", *s.ListenAddr)
 	s.ln = ln
 	s.aof = aof
 
@@ -95,7 +94,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			break
 		}
-		slog.Info("Received", "message", message)
+		slog.Debug("Received", "message", message)
 		if message.Type != resp.RespArray {
 			writer.Write(resp.Value{Type: resp.RespError, Str: "Invalid request, expected array"})
 			continue
@@ -116,7 +115,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 		response := command.Handler(args)
 		if command.IsWrite && response.Type != resp.RespError {
-			slog.Info("Saving into AOF", "message", message)
+			slog.Debug("Saving into AOF", "message", message)
 			s.aof.Write(message)
 		}
 		writer.Write(response)

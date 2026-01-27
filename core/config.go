@@ -9,80 +9,111 @@ import (
 	"os"
 	"strconv"
 	"strings"
-)
 
-var ErrInvalidPolicy = errors.New("invalid policy, must be one of: lru, fifo")
+	"github.com/devkarim/goredis/eviction"
+)
 
 var (
-	defaultConfigFilePath = "goredis.conf"
-
-	defaultPort                    = "6379"
-	defaultAofPath                 = "database.aof"
-	defaultPolicy    AllowedPolicy = "lru"
-	defaultMaxMemory int           = 1e+8
+	ErrInvalidMaxMemory = errors.New("maxmemory must be a positive integer")
+	ErrInvalidVerbose = errors.New("verbose must be a boolean")
+	ErrUnknownKey       = errors.New("unknown configuration key")
 )
 
-type AllowedPolicy string
+const (
+	defaultConfigFilePath = "goredis.conf"
 
-func (p *AllowedPolicy) String() string {
-	return string(*p)
-}
+	defaultPort      = "6379"
+	defaultAofPath   = "database.aof"
+	defaultMaxMemory = 1e+8
+)
 
-func (p *AllowedPolicy) Set(value string) error {
-	switch value {
-	case "fifo", "lru":
-		*p = AllowedPolicy(value)
-		return nil
-	default:
-		return ErrInvalidPolicy
-	}
-}
+const (
+	keyPort      = "port"
+	keyAof       = "aof"
+	keyMaxMemory = "maxmemory"
+	keyPolicy    = "policy"
+	keyVerbose   = "verbose"
+)
 
 type Config struct {
-	ListenAddr string
-	AofPath    string
-	Policy     string
-	MaxMemory  int
+	ListenAddr *string
+	AofPath    *string
+	Policy     *eviction.PolicyType
+	MaxMemory  *int
+	Verbose    *bool
 }
 
-func (cfg *Config) Set(name, value string) {
+func ptr[T any](v T) *T { return &v }
+
+func (cfg Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("ListenAddr", *cfg.ListenAddr),
+		slog.String("AofPath", *cfg.AofPath),
+		slog.Any("Policy", *cfg.Policy),
+		slog.Int("MaxMemory", *cfg.MaxMemory),
+		slog.Bool("Verbose", *cfg.Verbose),
+	)
+}
+
+func (cfg *Config) Set(name, value string) error {
 	switch name {
-	case "port":
-		cfg.ListenAddr = fmt.Sprintf(":%s", value)
-	case "aof":
-		cfg.AofPath = value
-	case "maxmemory":
-		value, err := strconv.Atoi(value)
-		if err != nil {
-			slog.Warn("maxmemory is not an integer")
-			return
+	case keyPort:
+		cfg.ListenAddr = ptr(fmt.Sprintf(":%s", value))
+	case keyAof:
+		cfg.AofPath = ptr(value)
+	case keyMaxMemory:
+		v, err := strconv.Atoi(value)
+		if err != nil || v <= 0 {
+			return ErrInvalidMaxMemory
 		}
-		cfg.MaxMemory = value
-	case "policy":
-		var policy *AllowedPolicy
-		err := policy.Set(value)
-		if err != nil {
-			slog.Warn("invalid value for policy")
-			return
+		cfg.MaxMemory = ptr(v)
+	case keyPolicy:
+		var policy eviction.PolicyType
+		if err := policy.Set(value); err != nil {
+			return err
 		}
-		cfg.Policy = value
+		cfg.Policy = ptr(policy)
+	case keyVerbose:
+		v, err := strconv.ParseBool(value)
+		if err != nil {
+			return ErrInvalidVerbose
+		}
+		cfg.Verbose = ptr(v)
+	default:
+		return fmt.Errorf("%w: %s", ErrUnknownKey, name)
 	}
+	return nil
 }
 
-func (cfg *Config) MergeWith(anotherConfig Config) Config {
-	if anotherConfig.ListenAddr != "" {
-		cfg.ListenAddr = anotherConfig.ListenAddr
+func (cfg *Config) Validate() error {
+	if cfg.ListenAddr == nil || *cfg.ListenAddr == "" {
+		return errors.New("listen address is required")
 	}
-	if anotherConfig.AofPath != "" {
-		cfg.AofPath = anotherConfig.AofPath
+	if cfg.MaxMemory == nil || *cfg.MaxMemory <= 0 {
+		return ErrInvalidMaxMemory
 	}
-	if anotherConfig.MaxMemory != 0 {
-		cfg.MaxMemory = anotherConfig.MaxMemory
+	if cfg.Policy == nil || *cfg.Policy == "" {
+		return eviction.ErrInvalidPolicyType
 	}
-	if anotherConfig.Policy != "" {
-		cfg.Policy = anotherConfig.Policy
+	return nil
+}
+
+func (cfg *Config) MergeWith(other Config) {
+	if other.ListenAddr != nil {
+		cfg.ListenAddr = other.ListenAddr
 	}
-	return *cfg
+	if other.AofPath != nil {
+		cfg.AofPath = other.AofPath
+	}
+	if other.MaxMemory != nil {
+		cfg.MaxMemory = other.MaxMemory
+	}
+	if other.Policy != nil {
+		cfg.Policy = other.Policy
+	}
+	if other.Verbose != nil {
+		cfg.Verbose = other.Verbose
+	}
 }
 
 func LoadConfig() (Config, error) {
@@ -93,7 +124,11 @@ func LoadConfig() (Config, error) {
 		return cfg, err
 	}
 
-	cfg = cfg.MergeWith(argsConfig)
+	cfg.MergeWith(argsConfig)
+
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
 
 	slog.Info("Loaded configuration", "config", cfg)
 
@@ -102,49 +137,31 @@ func LoadConfig() (Config, error) {
 
 func LoadDefaultConfig() Config {
 	return Config{
-		ListenAddr: fmt.Sprintf(":%s", defaultPort),
-		AofPath:    defaultAofPath,
-		MaxMemory:  int(defaultMaxMemory),
-		Policy:     string(defaultPolicy),
+		ListenAddr: ptr(fmt.Sprintf(":%s", defaultPort)),
+		AofPath:    ptr(defaultAofPath),
+		MaxMemory:  ptr(int(defaultMaxMemory)),
+		Policy:     ptr(eviction.PolicyLRU),
+		Verbose:    ptr(false),
 	}
 }
 
-func isFlagPassed(name string) bool {
-	found := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			found = true
-		}
-	})
-	return found
-}
-
 func LoadArgs() Config {
-	var policy AllowedPolicy = defaultPolicy
-	port := flag.String("port", defaultPort, "Port to listen on")
-	aofPath := flag.String("aof", defaultAofPath, "Path of the AOF file")
-	maxMemory := flag.Int("maxmemory", defaultMaxMemory, "Max memory in bytes")
-	flag.Var(&policy, "policy", "Eviction policy: lru, fifo")
+	var policy eviction.PolicyType
+	flag.String(keyPort, defaultPort, "Port to listen on")
+	flag.String(keyAof, defaultAofPath, "Path of the AOF file")
+	flag.Int(keyMaxMemory, defaultMaxMemory, "Max memory in bytes")
+	flag.Var(&policy, keyPolicy, "Eviction policy: lru, fifo")
+	flag.Bool(keyVerbose, false, "Verbose mode for debugging")
 
 	flag.Parse()
 
 	cfg := Config{}
 
-	if isFlagPassed("port") {
-		cfg.Set("port", *port)
-	}
-
-	if isFlagPassed("aof") {
-		cfg.Set("aof", *aofPath)
-	}
-
-	if isFlagPassed("policy") {
-		cfg.Set("policy", string(policy))
-	}
-
-	if isFlagPassed("maxmemory") {
-		cfg.Set("maxmemory", strconv.Itoa(*maxMemory))
-	}
+	flag.Visit(func(f *flag.Flag) {
+		if err := cfg.Set(f.Name, f.Value.String()); err != nil {
+			slog.Warn("invalid flag value", "flag", f.Name, "error", err)
+		}
+	})
 
 	return cfg
 }
@@ -167,11 +184,21 @@ func LoadConfigFile() (Config, error) {
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
-		line := strings.Split(scanner.Text(), " ")
-		if len(line) >= 2 {
-			key, value := line[0], line[1]
-			cfg.Set(key, value)
+		text := strings.TrimSpace(scanner.Text())
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		parts := strings.SplitN(text, " ", 2)
+		if len(parts) == 2 {
+			if err := cfg.Set(parts[0], strings.TrimSpace(parts[1])); err != nil {
+				slog.Warn("invalid config value", "key", parts[0], "error", err)
+			}
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }

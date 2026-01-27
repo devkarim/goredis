@@ -62,7 +62,7 @@ func GetShard(key string) *Shard {
 }
 
 func (s *Shard) evict(neededSize int) {
-	slog.Info("Evicting policy", "shard", s.Id, "currentMemory", s.CurrentMemory, "neededSize", neededSize, "maxMemory", s.MaxMemory)
+	slog.Debug("Evicting policy", "shard", s.Id, "currentMemory", s.CurrentMemory, "neededSize", neededSize, "maxMemory", s.MaxMemory)
 	for s.CurrentMemory+neededSize > s.MaxMemory {
 		victim, ok := s.Policy.SelectVictim()
 		if ok {

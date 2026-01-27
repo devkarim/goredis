@@ -11,6 +11,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	core.SetupLogger(*cfg.Verbose)
+
 	s := NewServer(cfg)
 	log.Fatal(s.Start())
 }

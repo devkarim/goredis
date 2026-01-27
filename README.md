@@ -23,10 +23,10 @@ Inspired by:
 - [x] Eviction policies
     - [x] FIFO
     - [x] LRU
-- [ ] Configuration file
-    - [ ] Port
-    - [ ] Memory limit
-    - [ ] Verbose flag
+- [x] Configuration file
+    - [x] Port
+    - [x] Memory limit
+    - [x] Verbose flag
 - [ ] Sorted sets (Optional)
 - [ ] Transactions (Optional)
 

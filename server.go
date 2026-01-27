@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/devkarim/goredis/commands"
+	"github.com/devkarim/goredis/core"
 	"github.com/devkarim/goredis/eviction"
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
@@ -15,20 +16,13 @@ import (
 
 const SYNC_TIME = time.Second * 1
 
-type Config struct {
-	ListenAddr string
-	AofPath    string
-	Policy     string
-	MaxMemory  int
-}
-
 type Server struct {
-	Config
+	core.Config
 	ln  net.Listener
 	aof *storage.Aof
 }
 
-func NewServer(cfg Config) *Server {
+func NewServer(cfg core.Config) *Server {
 	return &Server{
 		Config: cfg,
 	}

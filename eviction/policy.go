@@ -11,10 +11,9 @@ type Policy interface {
 func NewPolicy(policy string) Policy {
 	switch policy {
 	case "lru":
-	return NewLRU()
+		return NewLRU()
 	case "fifo":
-	return NewFIFO()
+		return NewFIFO()
 	}
 	return nil
 }
-

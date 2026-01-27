@@ -7,3 +7,14 @@ type Policy interface {
 
 	SelectVictim() (string, bool)
 }
+
+func NewPolicy(policy string) Policy {
+	switch policy {
+	case "lru":
+	return NewLRU()
+	case "fifo":
+	return NewFIFO()
+	}
+	return nil
+}
+

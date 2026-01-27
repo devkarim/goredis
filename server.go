@@ -13,12 +13,13 @@ import (
 	"github.com/devkarim/goredis/storage"
 )
 
-const DEFAULT_LISTEN_ADDR = ":6379"
-const AOF_FILE_PATH = "database.aof"
 const SYNC_TIME = time.Second * 1
 
 type Config struct {
 	ListenAddr string
+	AofPath    string
+	Policy     string
+	MaxMemory  int
 }
 
 type Server struct {
@@ -28,19 +29,15 @@ type Server struct {
 }
 
 func NewServer(cfg Config) *Server {
-	if len(cfg.ListenAddr) == 0 {
-		cfg.ListenAddr = DEFAULT_LISTEN_ADDR
-	}
 	return &Server{
 		Config: cfg,
 	}
 }
 
 func (s *Server) Start() error {
-	// TODO: allow to configure eviction policy and maxmemory
-	storage.Setup(eviction.NewLRU(), 1e+8)
+	storage.Setup(eviction.NewPolicy(s.Policy), s.MaxMemory)
 
-	aof, err := storage.NewAof(AOF_FILE_PATH)
+	aof, err := storage.NewAof(s.AofPath)
 	if err != nil {
 		slog.Error("Couldn't read aof", "error", err)
 		return err
@@ -71,7 +68,7 @@ func (s *Server) Start() error {
 	}
 	defer ln.Close()
 
-	slog.Info("Server running at localhost:6379")
+	slog.Info("Server running at", "listenAddr", s.ListenAddr)
 	s.ln = ln
 	s.aof = aof
 

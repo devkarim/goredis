@@ -18,7 +18,8 @@ Inspired by:
 - [x] Caching layer
 - [x] Sharding
 - [x] Data persistence layer
-- [ ] Set key expiration
+- [x] Set key expiration
+    - [ ] Handle AOF for expired keys
 - [ ] Pub/Sub
 - [x] Eviction policies
     - [x] FIFO

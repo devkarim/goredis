@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/devkarim/goredis/resp"
 	"github.com/devkarim/goredis/storage"
 )
@@ -17,6 +20,7 @@ var Registry = map[string]Command{
 	"HSET":    {Handler: hset, IsWrite: true},
 	"HGET":    {Handler: hget, IsWrite: false},
 	"HGETALL": {Handler: hgetall, IsWrite: false},
+	"EXPIRE":  {Handler: expire, IsWrite: false}, // TODO: should be isWrite to save to AOF but will handle later
 }
 
 func ping(args []resp.Value) resp.Value {
@@ -132,4 +136,32 @@ func hgetall(args []resp.Value) resp.Value {
 	}
 
 	return resp.Value{Type: resp.RespArray, Array: respArray}
+}
+
+func expire(args []resp.Value) resp.Value {
+	if len(args) != 2 {
+		return resp.Value{Type: resp.RespError, Str: "ERR wrong number of arguments for 'expire' command"}
+	}
+
+	key := args[0].Str
+	seconds, err := strconv.Atoi(args[1].Str)
+	if err != nil {
+		return resp.Value{Type: resp.RespError, Str: "ERR value is not an integer"}
+	}
+
+	shard := storage.GetShard(key)
+
+	if seconds <= 0 {
+		shard.Delete(key)
+		return resp.Value{Type: resp.RespInteger, Num: 1}
+	}
+
+	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
+	updated := shard.SetExpire(key, deadline)
+
+	if !updated {
+		return resp.Value{Type: resp.RespInteger, Num: 0}
+	}
+
+	return resp.Value{Type: resp.RespInteger, Num: 1}
 }

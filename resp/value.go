@@ -5,16 +5,18 @@ import "strconv"
 type RespDataType byte
 
 const (
-	RespString RespDataType = '+'
-	RespArray  RespDataType = '*'
-	RespBulk   RespDataType = '$'
-	RespError  RespDataType = '-'
-	RespNil    RespDataType = '_'
+	RespString  RespDataType = '+'
+	RespInteger RespDataType = ':'
+	RespArray   RespDataType = '*'
+	RespBulk    RespDataType = '$'
+	RespError   RespDataType = '-'
+	RespNil     RespDataType = '_'
 )
 
 type Value struct {
 	Type  RespDataType
 	Str   string
+	Num   int
 	Array []Value
 }
 
@@ -22,6 +24,8 @@ func (v *Value) Marshal() []byte {
 	switch v.Type {
 	case RespString:
 		return v.marshalString()
+	case RespInteger:
+		return v.marshalInteger()
 	case RespArray:
 		return v.marshalArray()
 	case RespBulk:
@@ -41,6 +45,17 @@ func (v *Value) marshalString() []byte {
 
 	bytes = append(bytes, byte(RespString))
 	bytes = append(bytes, v.Str...)
+	bytes = append(bytes, '\r', '\n')
+
+	return bytes
+}
+
+// :[<+|->]<value>\r\n
+func (v *Value) marshalInteger() []byte {
+	var bytes []byte
+
+	bytes = append(bytes, byte(RespInteger))
+	bytes = append(bytes, strconv.Itoa(v.Num)...)
 	bytes = append(bytes, '\r', '\n')
 
 	return bytes

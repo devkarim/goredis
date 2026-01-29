@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/devkarim/goredis/eviction"
 )
@@ -40,6 +41,7 @@ type Shard struct {
 	Id            int
 	Mu            sync.RWMutex
 	Store         map[string]*RedisObject
+	Expire        map[string]time.Time
 	Policy        eviction.Policy
 	CurrentMemory int // in bytes
 	MaxMemory     int // in bytes
@@ -51,14 +53,65 @@ func Setup(policy eviction.Policy, maxMemory int) {
 	shards = make([]*Shard, 8)
 
 	for i := 0; i < len(shards); i++ {
-		shards[i] = &Shard{Id: i, MaxMemory: maxMemory, Policy: policy, Mu: sync.RWMutex{}, Store: map[string]*RedisObject{}}
+		shards[i] = &Shard{
+			Id: i,
+			MaxMemory: maxMemory,
+			Policy: policy,
+			Mu: sync.RWMutex{},
+			Store: make(map[string]*RedisObject),
+			Expire: make(map[string]time.Time),
+		}
 	}
+
+	startJanitor()
+}
+
+func startJanitor() {
+	go func() {
+		for {
+			time.Sleep(100 * time.Millisecond)
+			for _, shard := range shards {
+				shard.cleanExpiredKeys()
+			}
+		}
+	}()
 }
 
 func GetShard(key string) *Shard {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	return shards[h.Sum32()%uint32(len(shards))]
+}
+
+func (s *Shard) cleanExpiredKeys() {
+	slog.Debug("Cleaning expired keys...", )
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	for {
+		deleted := 0
+		sampleSize := 20
+
+		for key, expiry := range s.Expire {
+			// is expired?
+			if time.Now().After(expiry) {
+				s.Delete(key)
+				deleted++
+
+				slog.Info("Janitor", "deleted", key, "expiry", expiry, "now", time.Now(), "total", deleted)
+			}
+
+			sampleSize--
+			if sampleSize <= 0 {
+				break
+			}
+		}
+
+		if deleted < 5 {
+			break
+		}
+	}
 }
 
 func (s *Shard) evict(neededSize int) {
@@ -116,6 +169,10 @@ func (s *Shard) GetString(key string) (string, bool, error) {
 		return "", false, ErrWrongType
 	}
 
+	if s.isExpired(key) {
+		return "", false, nil
+	}
+
 	s.Policy.Access(key)
 
 	return obj.Str, true, nil
@@ -165,6 +222,10 @@ func (s *Shard) HGet(hash, key string) (string, bool, error) {
 		return "", false, ErrWrongType
 	}
 
+	if s.isExpired(hash) {
+		return "", false, nil
+	}
+
 	s.Policy.Access(hash)
 
 	val, ok := obj.Hash[key]
@@ -187,6 +248,10 @@ func (s *Shard) HGetAll(hash string) ([]string, bool, error) {
 		return []string{}, false, ErrWrongType
 	}
 
+	if s.isExpired(hash) {
+		return []string{}, false, nil
+	}
+
 	s.Policy.Access(hash)
 
 	arr := make([]string, len(obj.Hash)*2)
@@ -199,3 +264,39 @@ func (s *Shard) HGetAll(hash string) ([]string, bool, error) {
 
 	return arr, true, nil
 }
+
+func (s *Shard) isExpired(key string) bool {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	expiry, exists := s.Expire[key]
+	if !exists || time.Now().Before(expiry) {
+		return false
+	}
+	// The key is expired
+	s.Delete(key)
+
+	return true
+}
+
+func (s *Shard) Delete(key string) bool {
+	delete(s.Store, key)
+	delete(s.Expire, key)
+
+	s.Policy.Remove(key)
+
+	return true
+}
+
+func (s *Shard) SetExpire(key string, deadline time.Time) bool {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	if _, exists := s.Store[key]; !exists {
+		return false
+	}
+
+	s.Expire[key] = deadline
+	return true
+}
+
